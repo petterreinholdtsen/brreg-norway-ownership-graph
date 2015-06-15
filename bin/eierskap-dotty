@@ -1,0 +1,119 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# Given a set of org IDs, extract ownership and output a dotty graph
+# showing the ownership relations.
+#
+# Scrape info from proff.no, as brreg.no do not seem to provide
+# ownership information.
+
+
+import sys
+import codecs
+import mechanize
+import lxml.html
+
+# output using UTF-8
+sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+
+# Collected data set, indexed on orgnr
+data = {}
+
+def lookup_org(orgid):
+    starturl = "http://www.proff.no/selskap/-/-/-/%s/" % orgid
+
+    br = mechanize.Browser()
+    br.open(starturl)
+    orgurl = br.response().geturl()
+    # Syntesize correct URL for roles
+    roleurl = orgurl.replace("/selskap/", "/roller/")
+#    print roleurl
+    br.open(roleurl)
+    response = br.response()
+    html = response.read().decode("UTF-8")
+    root = lxml.html.fromstring(html)
+
+    
+    orgname = root.cssselect("div.header-wrap header h1")[0].text
+
+#    print "Owners of %s:" % orgname
+    owners = []
+    for ownerrow in root.cssselect("table.shareholders-table tbody tr"):
+#        print "R:",ownerrow, ownerrow.text
+        (name, shares, frac) = ownerrow.cssselect("td")
+        ownername = name.cssselect("span")[0].text
+        ahrefs = name.cssselect("a")
+#        print ahrefs, len(ahrefs)
+        if 0 < len(ahrefs) and 'href' in ahrefs[0].attrib:
+            ownerurl = ahrefs[0].attrib['href']
+            ownerorgid = ownerurl.replace("/selskap/-/-/-/", "").replace("/", "")
+        else:
+            ownerorgid = None
+#        print ownername, ownerorgid
+        ownerinfo = {
+            'name'       : ownername,
+            'shares'     : shares.text,
+            'sharesfrac' : frac.text,
+            }
+        if ownerorgid is not None:
+            ownerinfo['orgid'] = ownerorgid
+        owners.append(ownerinfo)
+#    print owners
+    data[orgid] = {
+        'name' : orgname,
+        'owners' : owners,
+        }
+    return data[orgid]
+
+def fetch_ownership_graph(orgid):
+    queue = [orgid]
+    while 0 < len(queue):
+        curorgid = queue.pop(0)
+#    print "Looking up %s" % curorgid
+        info = lookup_org(curorgid)
+        for owner in info['owners']:
+            name = owner['name']
+            if 'orgid' in owner:
+                ownerorgid = owner['orgid']
+#            print "Considering %s" % ownerorgid
+                if ownerorgid not in data and ownerorgid not in queue:
+#                print "Adding %s to queue" % owner['orgid']
+                    queue.append(owner['orgid'])
+
+def dotty_orgid_output(labels, orgid):
+    str = ""
+    labels[orgid] = data[orgid]['name']
+    for owner in data[orgid]['owners']:
+        if 'orgid' in owner:
+            ownerstr = owner['orgid']
+#            print "Checking", owner
+            if 'orgid' in owner and owner['orgid'] not in labels:
+#                print "printing ", owner['orgid']
+                str = str + dotty_orgid_output(labels, owner['orgid'])
+            labels[owner['orgid']] = owner['name']
+        else:
+            ownerstr = owner['name']
+        str = str + "\"%s\" -> \"%s\" [label=\"%s\"]\n" % (ownerstr, orgid, owner['sharesfrac'])
+
+#    for owner in data[orgid]['owners']:
+    return str
+
+def dotty_output(orgids):
+    for orgid in orgids:
+        fetch_ownership_graph(orgid)
+    str = "digraph ownership {\n"
+#    str = str + "concentrate=true;\n"
+    str = str + "rankdir = LR;\n"
+    labels = {}
+    for orgid in orgids:
+        str = str + dotty_orgid_output(labels, orgid)
+    for labelorgid in labels.keys():
+        str = str + "\"%s\" [label=\"%s\"]\n" %(labelorgid, labels[labelorgid])
+    str = str + "}\n"
+    return str
+
+if __name__ == '__main__':
+    if 1 < len(sys.argv):
+        print dotty_output(sys.argv[1:])
+    else:
+        print "Usage: ", sys.argv[0], " <orgid> [<orgid>...]"

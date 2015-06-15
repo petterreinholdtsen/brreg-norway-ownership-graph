@@ -1,0 +1,10 @@
+Print ownership graphs for Norwegian companies
+==============================================
+
+See <URL: https://github.com/petterreinholdtsen/brreg-norway-ownership-graph >
+for the latest version
+
+To use it, run it like this:
+
+  ./bin/eierskap-dotty 960356071 > dagens-naeringsliv.dot
+  dotty dagens-naeringsliv.dot
