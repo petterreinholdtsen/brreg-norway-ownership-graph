@@ -80,8 +80,10 @@ def fetch_ownership_graph(orgid):
 #                print "Adding %s to queue" % owner['orgid']
                     queue.append(owner['orgid'])
 
-def dotty_orgid_output(labels, edges, orgid):
+def dotty_orgid_output(labels, orgid):
     str = ""
+    if orgid in labels: # Already processed, skip it
+        return str
     labels[orgid] = data[orgid]['name']
     for owner in data[orgid]['owners']:
         if 'orgid' in owner:
@@ -89,14 +91,11 @@ def dotty_orgid_output(labels, edges, orgid):
 #            print "Checking", owner
             if 'orgid' in owner and owner['orgid'] not in labels:
 #                print "printing ", owner['orgid']
-                str = str + dotty_orgid_output(labels, edges, owner['orgid'])
+                str = str + dotty_orgid_output(labels, owner['orgid'])
             labels[owner['orgid']] = owner['name']
         else:
             ownerstr = owner['name']
-        edgestr = "%s->%s" % (ownerstr, orgid)
-        if edgestr not in edges:
-            str = str + "\"%s\" -> \"%s\" [label=\"%s\"]\n" % (ownerstr, orgid, owner['sharesfrac'])
-            edges[edgestr] = 1
+        str = str + "\"%s\" -> \"%s\" [label=\"%s\"]\n" % (ownerstr, orgid, owner['sharesfrac'])
     return str
 
 def dotty_output(orgids):
@@ -110,9 +109,8 @@ def dotty_output(orgids):
 #    str = str + "concentrate=true;\n"
     str = str + "rankdir = LR;\n"
     labels = {}
-    edges = {}
     for orgid in orgids:
-        str = str + dotty_orgid_output(labels, edges, orgid)
+        str = str + dotty_orgid_output(labels, orgid)
     for labelorgid in labels.keys():
         str = str + "\"%s\" [label=\"%s %s\"]\n" %(labelorgid, labels[labelorgid], labelorgid)
     str = str + "}\n"
