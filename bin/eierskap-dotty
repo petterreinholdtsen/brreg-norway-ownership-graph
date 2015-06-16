@@ -100,7 +100,11 @@ def dotty_orgid_output(labels, orgid):
 
 def dotty_output(orgids):
     for orgid in orgids:
-        fetch_ownership_graph(orgid)
+        try:
+            fetch_ownership_graph(orgid)
+        except Exception, e:
+            print >> sys.stderr, "Unable to look up %s" % orgid
+            pass
     str = "digraph ownership {\n"
 #    str = str + "concentrate=true;\n"
     str = str + "rankdir = LR;\n"
@@ -108,7 +112,7 @@ def dotty_output(orgids):
     for orgid in orgids:
         str = str + dotty_orgid_output(labels, orgid)
     for labelorgid in labels.keys():
-        str = str + "\"%s\" [label=\"%s\"]\n" %(labelorgid, labels[labelorgid])
+        str = str + "\"%s\" [label=\"%s %s\"]\n" %(labelorgid, labels[labelorgid], labelorgid)
     str = str + "}\n"
     return str
 
