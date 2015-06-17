@@ -8,3 +8,8 @@ To use it, run it like this:
 
   ./bin/eierskap-dotty 960356071 > dagens-naeringsliv.dot
   dotty dagens-naeringsliv.dot
+
+See also <URL: https://opencorporates.com/info/networks >,
+<URL: http://opendatacon.org/open-company-data-the-missing-link/ > and
+<URL: http://registries.opencorporates.com/ > for a international open
+data collection.
