@@ -36,11 +36,25 @@ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 data = {}
 
 def lookup_org(orgid):
+#    print "Looking up org %s" % orgid
     starturl = "http://www.proff.no/selskap/-/-/-/%s/" % orgid
 
     br = mechanize.Browser()
     br.open(starturl)
-    orgurl = br.response().geturl()
+    response = br.response()
+    orgurl = response.geturl()
+
+#    print "locating subs in %s" % orgurl
+    root = lxml.html.fromstring(response.read().decode("UTF-8"))
+    offinfo = root.cssselect("section.official-info ul li.clear span a")
+    subs = []
+    for a in offinfo:
+        if 'href' in a.attrib:
+#            print a.attrib['href']
+            suborgid = a.attrib['href'].split('/')[-2]
+            subs.append(suborgid)
+#    print subs
+
     # Syntesize correct URL for roles
     roleurl = orgurl.replace("/selskap/", "/roller/")
 #    print roleurl
@@ -48,7 +62,6 @@ def lookup_org(orgid):
     response = br.response()
     html = response.read().decode("UTF-8")
     root = lxml.html.fromstring(html)
-
     
     orgname = root.cssselect("div.header-wrap header h1")[0].text
 
@@ -78,7 +91,9 @@ def lookup_org(orgid):
     data[orgid] = {
         'name' : orgname,
         'owners' : owners,
+        'subs' : subs,
         }
+#    print data[orgid]
     return data[orgid]
 
 def fetch_ownership_graph(orgid):
@@ -87,14 +102,17 @@ def fetch_ownership_graph(orgid):
         curorgid = queue.pop(0)
 #    print "Looking up %s" % curorgid
         info = lookup_org(curorgid)
+        for suborgid in info['subs']:
+            if suborgid not in data and suborgid not in queue:
+                queue.append(suborgid)
         for owner in info['owners']:
-            name = owner['name']
             if 'orgid' in owner:
                 ownerorgid = owner['orgid']
 #            print "Considering %s" % ownerorgid
                 if ownerorgid not in data and ownerorgid not in queue:
 #                print "Adding %s to queue" % owner['orgid']
                     queue.append(owner['orgid'])
+#        print "Q remaining:", queue
 
 def dotty_orgid_output(labels, orgid):
     str = ""
@@ -118,14 +136,14 @@ def dotty_output(orgids):
     for orgid in orgids:
         try:
             fetch_ownership_graph(orgid)
-        except Exception, e:
-            print >> sys.stderr, "Unable to look up %s" % orgid
+        except Exception as e:
+            print >> sys.stderr, "Unable to look up %s: %s" % (orgid, e)
             pass
     str = "digraph ownership {\n"
 #    str = str + "concentrate=true;\n"
     str = str + "rankdir = LR;\n"
     labels = {}
-    for orgid in orgids:
+    for orgid in data.keys():
         str = str + dotty_orgid_output(labels, orgid)
     for labelorgid in labels.keys():
         str = str + "\"%s\" [label=\"%s %s\"]\n" %(labelorgid, labels[labelorgid], labelorgid)
