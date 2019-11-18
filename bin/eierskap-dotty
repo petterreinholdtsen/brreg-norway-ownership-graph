@@ -42,7 +42,7 @@ def log(msg):
 
 def lookup_org(orgid):
     log("Looking up org %s" % orgid)
-    starturl = "http://www.proff.no/selskap/-/-/-/%s/" % orgid
+    starturl = "https://www.proff.no/selskap/-/-/-/%s/" % orgid
 
     br = mechanize.Browser()
     br.open(starturl)
@@ -80,7 +80,7 @@ def lookup_org(orgid):
 #        print ahrefs, len(ahrefs)
         if 0 < len(ahrefs) and 'href' in ahrefs[0].attrib:
             ownerurl = ahrefs[0].attrib['href']
-            ownerorgid = ownerurl.replace("/selskap/-/-/-/", "").replace("/", "")
+            ownerorgid = ownerurl.replace("/aksjon%C3%A6rer/-/-/", "").replace("/", "")
         else:
             ownerorgid = None
 #        print ownername, ownerorgid
