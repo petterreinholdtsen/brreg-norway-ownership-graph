@@ -1,7 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2015 Petter Reinholdtsen <pere@hungry.com>
+# Copyright (C) 2015,2025 Petter Reinholdtsen <pere@hungry.com>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public
@@ -28,32 +28,35 @@ import sys
 import codecs
 import mechanize
 import lxml.html
-import urllib2
+
+directonly = True
 
 # output using UTF-8
-sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+#sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 # Collected data set, indexed on orgnr
 data = {}
 
 def log(msg):
-    print >> sys.stderr, msg
+    print(msg, file=sys.stderr)
     return
 
 def lookup_org(orgid):
     log("Looking up org %s" % orgid)
-    starturl = "https://www.proff.no/selskap/-/-/-/%s/" % orgid
-
+    starturl = "https://www.proff.no/selskap/-/-/-/%s" % orgid
+    log(starturl)
+#    return {}
     br = mechanize.Browser()
+    br.set_debug_redirects(True)
     br.open(starturl)
     response = br.response()
     orgurl = response.geturl()
-
 #    print "locating subs in %s" % orgurl
     root = lxml.html.fromstring(response.read().decode("UTF-8"))
     offinfo = root.cssselect("section.official-info ul li.clear span a")
     subs = []
-    for a in offinfo:
+    if not directonly:
+      for a in offinfo:
         if 'href' in a.attrib:
 #            print a.attrib['href']
             suborgid = a.attrib['href'].split('/')[-2]
@@ -62,15 +65,16 @@ def lookup_org(orgid):
 
     # Syntesize correct URL for roles
     roleurl = orgurl.replace("/selskap/", "/roller/")
-#    print roleurl
+#    print(roleurl)
     br.open(roleurl)
     response = br.response()
     html = response.read().decode("UTF-8")
+#    print(html)
     root = lxml.html.fromstring(html)
     
     orgname = root.cssselect("div.header-wrap header h1")[0].text
 
-#    print "Owners of %s:" % orgname
+    print("Owners of %s:" % orgname)
     owners = []
     for ownerrow in root.cssselect("table.shareholders-table tbody tr"):
 #        print "R:",ownerrow, ownerrow.text
@@ -109,9 +113,9 @@ def fetch_ownership_graph(orgid):
         curorgid = queue.pop(0)
         try:
             info = lookup_org(curorgid)
-        except urllib2.HTTPError, e:
+        except mechanize.HTTPError as e:
             log("Unable to look up %s: %s" % (curorgid, e))
-            pass
+            continue
         if recurse[orgid][1]:
             for suborgid in info['subs']:
                 if suborgid not in data and suborgid not in queue:
@@ -129,8 +133,12 @@ def fetch_ownership_graph(orgid):
         log("Q remaining:" + str(queue))
 
 def dotty_orgid_output(labels, orgid):
+#    log("Output %s" % orgid)
     str = ""
     if orgid in labels: # Already processed, skip it
+        return str
+    if orgid not in data:
+        log("error: unable to find info on org %s" % orgid)
         return str
     labels[orgid] = data[orgid]['name']
     for owner in data[orgid]['owners']:
@@ -163,6 +171,7 @@ def dotty_output(orgids):
 
 if __name__ == '__main__':
     if 1 < len(sys.argv):
-        print dotty_output(sys.argv[1:])
+        res = dotty_output(sys.argv[1:])
+        print(res)
     else:
-        print "Usage: ", sys.argv[0], " <orgid> [<orgid>...]"
+        print("Usage: ", sys.argv[0], " <orgid> [<orgid>...]")
