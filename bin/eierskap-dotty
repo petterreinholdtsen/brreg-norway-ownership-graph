@@ -26,6 +26,7 @@
 
 import sys
 import codecs
+import json
 import mechanize
 import lxml.html
 
@@ -43,14 +44,13 @@ def log(msg):
 
 def lookup_org(orgid):
     log("Looking up org %s" % orgid)
-    starturl = "https://www.proff.no/selskap/-/-/-/%s" % orgid
-    log(starturl)
-#    return {}
+    starturl = "https://www.proff.no/aksjon%%C3%%A6rer/-/-/%s" % orgid
+
     br = mechanize.Browser()
-    br.set_debug_redirects(True)
     br.open(starturl)
     response = br.response()
     orgurl = response.geturl()
+
 #    print "locating subs in %s" % orgurl
     root = lxml.html.fromstring(response.read().decode("UTF-8"))
     offinfo = root.cssselect("section.official-info ul li.clear span a")
@@ -72,30 +72,24 @@ def lookup_org(orgid):
 #    print(html)
     root = lxml.html.fromstring(html)
     
-    orgname = root.cssselect("div.header-wrap header h1")[0].text
+    orgname = root.cssselect("div.MuiGrid-container div.MuiGrid-direction-xs-row h1")[0].text
 
-    print("Owners of %s:" % orgname)
+    #print("Owners of %s:" % orgname)
     owners = []
-    for ownerrow in root.cssselect("table.shareholders-table tbody tr"):
-#        print "R:",ownerrow, ownerrow.text
-        (name, shares, frac) = ownerrow.cssselect("td")
-        ownername = name.cssselect("span")[0].text
-        ahrefs = name.cssselect("a")
-#        print ahrefs, len(ahrefs)
-        if 0 < len(ahrefs) and 'href' in ahrefs[0].attrib:
-            ownerurl = ahrefs[0].attrib['href']
-            ownerorgid = ownerurl.replace("/aksjon%C3%A6rer/-/-/", "").replace("/", "")
-        else:
-            ownerorgid = None
-#        print ownername, ownerorgid
+
+    info = root.cssselect("script#__NEXT_DATA__")[0].text
+    d = json.loads(info)
+    for owner in d["props"]["pageProps"]["owners"]["relations"]:
+        ownerorgid = owner["id"]
         ownerinfo = {
-            'name'       : ownername,
-            'shares'     : shares.text,
-            'sharesfrac' : frac.text,
-            }
+            'name'       : owner["name"],
+            'shares'     : owner["numberOfShares"],
+            'sharesfrac' : owner["sharePercentage"],
+        }
         if ownerorgid is not None:
             ownerinfo['orgid'] = ownerorgid
         owners.append(ownerinfo)
+
 #    print owners
     data[orgid] = {
         'name' : orgname,
